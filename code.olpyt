@@ -1,0 +1,9 @@
+call 4;
+call "Hello";
+call 1.4;
+call %std;
+call (int)$name;
+call (int)@gamer[];
+call (int)@gamer[2, 3.2];
+call (str)%std::@input[];
+call (None)%std::@print["Hello, world", 2];
