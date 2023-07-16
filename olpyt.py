@@ -4,7 +4,7 @@ code = ""
 with open("code.olpyt", "r") as file:
     code = file.read()
 
-tokens = ("NAME", "STRING", "INT", "FLOAT", "COMMA", "LIB_REF", "LIB_USE", "OPEN_BRAC", "CLOSE_BRAC", "OPEN_PARAN", "CLOSE_PARAN", "FUNC", "VAR_REF", "DIRECTIVE")
+tokens = ("NAME", "STRING", "INT", "FLOAT", "COMMA", "LIB_REF", "LIB_USE", "OPEN_BRAC", "CLOSE_BRAC", "OPEN_PARAN", "CLOSE_PARAN", "FUNC", "VAR_REF", "DIRECTIVE", "ARG")
 
 def t_error(t):
     print("LEXER Error")
@@ -12,6 +12,7 @@ def t_error(t):
 
 t_ignore = " \n\t"
 t_STRING = r"\"[^\"]*\""
+t_ARG = r"\&"
 t_FLOAT = r"[0-9]+\.[0-9]+"
 t_INT = r"[0-9]+"
 def t_NAME(t):
@@ -43,6 +44,7 @@ def p_arg(p):
     arg : INT
         | STRING
         | FLOAT
+        | ARG INT
         | LIB_REF NAME
         | FUNC NAME
         | VAR_REF NAME
@@ -67,6 +69,8 @@ def p_arg(p):
             typ = "func"
         elif p[1] == "$":
             typ = "var_write"
+        elif p[1] == "&":
+            typ = "arg"
         else:
             typ = "lib"
         p[0] = (typ, p[2])
@@ -96,7 +100,7 @@ def p_PARAMETERS(p):
         a.append(p[3])
         p[0] = a
 
-output = "(lambda : [scope := [[{}, {}]], libs := {}, "
+output = "(lambda args : [scope := [[{}, {}]], libs := {}, "
 
 def ensure(cond, msg):
     try:
@@ -150,6 +154,10 @@ def interpret_arg(arg):
             final = "[{}(libs[\"{}\"][1][\"{}\"]({})), None][{}]".format(def_type, arg[1], arg[3], mult_arg(arg[4]), 1 if arg[2] == "none" else 0)
         elif len(arg) == 4:
             final = "[{}(libs[\"{}\"][1][\"{}\"]()), None][{}]".format(def_type, arg[1], arg[3], 1 if arg[2] == "none" else 0)
+    
+    elif arg[0] == "arg":
+        print(arg)
+        final = "args[{}]".format(arg[1])
 
     #print("final:", final)
     return final
@@ -216,7 +224,7 @@ for line in code.split(";"):
         line_val += 1
 
 output = output[:-2]
-output += "])()"
+output += "])(__import__(\"sys\").argv)"
 
 with open("test.py", "w") as file:
     file.write(output)
