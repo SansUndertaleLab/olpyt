@@ -1,7 +1,8 @@
 from ply import lex, yacc
+import sys
 
 code = ""
-with open("code.olpyt", "r") as file:
+with open(sys.argv[1], "r") as file:
     code = file.read()
 
 tokens = ("NAME", "STRING", "INT", "FLOAT", "COMMA", "LIB_REF", "LIB_USE", "OPEN_BRAC", "CLOSE_BRAC", "OPEN_PARAN", "CLOSE_PARAN", "FUNC", "VAR_REF", "DIRECTIVE", "ARG")
@@ -209,6 +210,7 @@ def p_error(p):
     global line_val
 
     print("Syntax error on line {}: {}".format(line_val, p))
+    exit()
 
 if code.strip() == "":
     exit()
@@ -226,5 +228,5 @@ for line in code.split(";"):
 output = output[:-2]
 output += "])(__import__(\"sys\").argv)"
 
-with open("test.py", "w") as file:
+with open(sys.argv[2], "w") as file:
     file.write(output)
