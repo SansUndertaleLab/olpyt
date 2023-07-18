@@ -219,10 +219,10 @@ def p_line(p):
         output += "])() if cond[-1]() else None), cond.pop()], "
 
     elif directive == "while":
-        output += "cond.append(lambda : {}), loops.append([0]), [[".format(interpret_arg(args[0]))
+        output += "cond.append(lambda : {}), (loops.append([0]) if cond[-1]() else loops.append([])), [[".format(interpret_arg(args[0]))
     
     elif directive == "end_while":
-        output += "loops[-1].append(0) if cond[-1]() else None] for _ in loops[-1]], "
+        output += "loops[-1].append(0) if cond[-1]() else None] for _ in loops[-1]], loops.pop(), "
 
     elif directive == "for":
         for_values.append(interpret_arg(args[0]))
