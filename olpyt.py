@@ -1,6 +1,8 @@
 from ply import lex, yacc
 import sys
 
+newline = False
+
 code = ""
 with open(sys.argv[1], "r") as file:
     code = file.read()
@@ -8,17 +10,17 @@ with open(sys.argv[1], "r") as file:
 tokens = ("NAME", "STRING", "INT", "FLOAT", "COMMA", "LIB_REF", "LIB_USE", "OPEN_BRAC", "CLOSE_BRAC", "OPEN_PARAN", "CLOSE_PARAN", "FUNC", "VAR_REF", "DIRECTIVE", "ARG")
 
 def t_error(t):
-    print("LEXER Error")
+    print("LEXER Error:", t)
     exit()
 
 t_ignore = " \n\t"
 t_STRING = r"\"[^\"]*\""
 t_ARG = r"\&"
-t_FLOAT = r"[0-9]+\.[0-9]+"
-t_INT = r"[0-9]+"
+t_FLOAT = r"\-?[0-9]+\.[0-9]+"
+t_INT = r"\-?[0-9]+"
 def t_NAME(t):
     r"[A-Za-z]([A-Za-z0-9]|\_)*"
-    keywords = ["import", "set", "discard", "func", "end_func"]
+    keywords = ["import", "set", "discard", "function", "end_func", "if", "end_if", "while", "end_while", "for", "end_for", "break"]
     if t.value in keywords:
         t.type = "DIRECTIVE"
 
@@ -101,7 +103,7 @@ def p_PARAMETERS(p):
         a.append(p[3])
         p[0] = a
 
-output = "(lambda args : [scope := [[{}, {}]], libs := {}, "
+output = "(lambda args: [scope := [[{}, {}]], cond := [], loops := [], libs := {}, "
 
 def ensure(cond, msg):
     try:
@@ -139,7 +141,7 @@ def interpret_arg(arg):
         if len(arg) == 4:
             final = "[{}(scope[0][1][\"{}\"]({})), None][{}]".format(def_type, arg[2], mult_arg(arg[3]), 1 if arg[1] == "none" else 0)
         elif len(arg) == 3:
-            final = "[{}(scope[0][1][\"{}\"]()), None][{}]".format(def_type, arg[2], 1 if arg[1] == "none" else 0)
+            final = "[{}(scope[0][1][\"{}\"]([])), None][{}]".format(def_type, arg[2], 1 if arg[1] == "none" else 0)
 
     elif arg[0] == "lib_var":
         if arg[1] == "None":
@@ -154,27 +156,35 @@ def interpret_arg(arg):
         if len(arg) == 5:
             final = "[{}(libs[\"{}\"][1][\"{}\"]({})), None][{}]".format(def_type, arg[1], arg[3], mult_arg(arg[4]), 1 if arg[2] == "none" else 0)
         elif len(arg) == 4:
-            final = "[{}(libs[\"{}\"][1][\"{}\"]()), None][{}]".format(def_type, arg[1], arg[3], 1 if arg[2] == "none" else 0)
+            final = "[{}(libs[\"{}\"][1][\"{}\"]([])), None][{}]".format(def_type, arg[1], arg[3], 1 if arg[2] == "none" else 0)
     
     elif arg[0] == "arg":
-        print(arg)
-        final = "args[{}]".format(arg[1])
+        final = "args[{}]".format(str(int(arg[1]) - 1))
 
-    #print("final:", final)
     return final
 
+for_values = []
+
 def p_line(p):
+    
     r"""   
     line : DIRECTIVE PARAMETERS
          | DIRECTIVE
     """
 
     global output
+    global newline
+    global for_values
+
+    if newline:
+        output += "\n\t"
 
     pat = p[1:]
 
     directive = pat[0]
-    args = pat[1]
+    args = []
+    if len(pat) > 1:
+        args = pat[1]
 
     if directive == "import":
         ensure(len(args) == 1, "Error: import directive requires 1 argument as library")
@@ -202,7 +212,38 @@ def p_line(p):
 
         output += "scope[-1][0].__setitem__(\"{}\", {}), ".format(args[0][1], interpret_arg(args[1]))
 
-    #print("line: ", list(p[1:]))
+    elif directive == "if":
+        output += "cond.append(lambda : {}), [((lambda : [None, ".format(interpret_arg(args[0]))
+
+    elif directive == "end_if":
+        output += "])() if cond[-1]() else None), cond.pop()], "
+
+    elif directive == "while":
+        output += "cond.append(lambda : {}), loops.append([0]), [[".format(interpret_arg(args[0]))
+    
+    elif directive == "end_while":
+        output += "loops[-1].append(0) if cond[-1]() else None] for _ in loops[-1]], "
+
+    elif directive == "for":
+        for_values.append(interpret_arg(args[0]))
+        output += "[["
+    
+    elif directive == "end_for":
+        output += "] for i in {}], ".format(for_values.pop())
+
+    elif directive == "function":
+        ensure(args[0][0] == "func", "Definition of function can only reference a function")
+        output += "scope[0][1].__setitem__(\"{}\", (lambda args : [scope.append([{}]), ".format(args[0][1], "{}")
+    
+    elif directive == "end_func":
+        if len(args) == 1:
+            output += interpret_arg(args[0]) + ", "
+        else:
+            output += "None, "
+        output += "scope.pop()][-2])), "
+    
+    elif directive == "break":
+        output += "[loops[-1].pop() for i in range(2)], "
 
 line_val = 1
 
@@ -226,6 +267,9 @@ for line in code.split(";"):
         line_val += 1
 
 output = output[:-2]
+if newline:
+    output += "\n"
+
 output += "])(__import__(\"sys\").argv)"
 
 with open(sys.argv[2], "w") as file:
