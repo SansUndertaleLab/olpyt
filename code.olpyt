@@ -1,9 +1,39 @@
-call 4;
-call "Hello";
-call 1.4;
-call %std;
-call (int)$name;
-call (int)@gamer[];
-call (int)@gamer[2, 3.2];
-call (str)%std::@input[];
-call (None)%std::@print["Hello, world", 2];
+discard "Importing libraries";
+import %std;
+import %arithmetic;
+import %control;
+
+discard "This is a showcase of the usage of every feature currently available";
+discard "Function declaration";
+
+function @get_name;
+    discard "Variables";
+    set $name, (str)%std::@input["Enter your name: "];
+
+    discard "Returning values";
+end_func (str)$name;
+
+function @greet;
+    discard "Taking arguments";
+    discard (none)%std::@print["Hello, ", &1, "!\n"];
+end_func;
+
+discard "Calling functions";
+discard (none)@greet[(str)@get_name[]];
+
+
+for (range)%arithmetic::@buffer[10];
+    discard (none)%std::@print["For loops\n"];
+end_for;
+
+discard "While loops, and using library Variables";
+set $a, 20;
+while (bool)%control::$True;
+    discard (none)%std::@print[(int)$a, "\n"];
+    discard "Nested conditionals";
+    set $a, (int)%arithmetic::@sub[(int)$a, 1];
+    if (bool)%control::@eq[(int)$a, 0];
+        discard "Breaking out of while loops";
+        break;
+    end_if;
+end_while;
