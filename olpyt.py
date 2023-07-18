@@ -20,7 +20,7 @@ t_FLOAT = r"\-?[0-9]+\.[0-9]+"
 t_INT = r"\-?[0-9]+"
 def t_NAME(t):
     r"[A-Za-z]([A-Za-z0-9]|\_)*"
-    keywords = ["import", "set", "discard", "function", "end_func", "if", "end_if", "while", "end_while", "for", "end_for", "break"]
+    keywords = ["import", "set", "discard", "function", "end_func", "if", "end_if", "while", "end_while", "for", "end_for", "break", "exit"]
     if t.value in keywords:
         t.type = "DIRECTIVE"
 
@@ -244,6 +244,9 @@ def p_line(p):
     
     elif directive == "break":
         output += "[loops[-1].pop() for i in range(2)], "
+
+    elif directive == "exit":
+        output += "exit(), "
 
 line_val = 1
 
