@@ -7,7 +7,7 @@ code = ""
 with open(sys.argv[1], "r") as file:
     code = file.read()
 
-tokens = ("NAME", "STRING", "INT", "FLOAT", "COMMA", "LIB_REF", "LIB_USE", "OPEN_BRAC", "CLOSE_BRAC", "OPEN_PARAN", "CLOSE_PARAN", "FUNC", "VAR_REF", "DIRECTIVE", "ARG", "QUESTION")
+tokens = ("NAME", "STRING", "INT", "FLOAT", "COMMA", "LIB_REF", "LIB_USE", "OPEN_BRAC", "CLOSE_BRAC", "OPEN_PARAN", "CLOSE_PARAN", "FUNC", "VAR_REF", "DIRECTIVE", "ARG", "QUESTION", "EXCLAMATION")
 
 def t_error(t):
     print("LEXER Error:", t)
@@ -36,6 +36,7 @@ t_CLOSE_PARAN = r"\)"
 t_FUNC = r"\@"
 t_VAR_REF = r"\$"
 t_QUESTION = r"\?"
+t_EXCLAMATION = r"\!"
 
 def p_type_indicator(p):
     r"""
@@ -50,6 +51,7 @@ def p_arg(p):
         | FLOAT
         | ARG INT
         | ARG QUESTION
+        | ARG EXCLAMATION
         | LIB_REF NAME
         | FUNC NAME
         | VAR_REF NAME
@@ -165,6 +167,8 @@ def interpret_arg(arg):
     elif arg[0] == "arg":
         if arg[1] == "?":
             final = "len(args)"
+        elif arg[1] == "!":
+            final = "args.pop(0)"
         else:
             final = "args[{}]".format(str(int(arg[1]) - 1))
 
