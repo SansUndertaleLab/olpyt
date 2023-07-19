@@ -7,7 +7,7 @@ code = ""
 with open(sys.argv[1], "r") as file:
     code = file.read()
 
-tokens = ("NAME", "STRING", "INT", "FLOAT", "COMMA", "LIB_REF", "LIB_USE", "OPEN_BRAC", "CLOSE_BRAC", "OPEN_PARAN", "CLOSE_PARAN", "FUNC", "VAR_REF", "DIRECTIVE", "ARG")
+tokens = ("NAME", "STRING", "INT", "FLOAT", "COMMA", "LIB_REF", "LIB_USE", "OPEN_BRAC", "CLOSE_BRAC", "OPEN_PARAN", "CLOSE_PARAN", "FUNC", "VAR_REF", "DIRECTIVE", "ARG", "QUESTION")
 
 def t_error(t):
     print("LEXER Error:", t)
@@ -35,6 +35,7 @@ t_OPEN_PARAN = r"\("
 t_CLOSE_PARAN = r"\)"
 t_FUNC = r"\@"
 t_VAR_REF = r"\$"
+t_QUESTION = r"\?"
 
 def p_type_indicator(p):
     r"""
@@ -48,6 +49,7 @@ def p_arg(p):
         | STRING
         | FLOAT
         | ARG INT
+        | ARG QUESTION
         | LIB_REF NAME
         | FUNC NAME
         | VAR_REF NAME
@@ -103,7 +105,9 @@ def p_PARAMETERS(p):
         a.append(p[3])
         p[0] = a
 
-output = "(lambda args: [scope := [[{}, {}]], cond := [], loops := [], libs := {}, "
+while_loop = r"""wl := (type("wl", (), {"__init__": (lambda self, func : ([setattr(self, "func", func), setattr(self, "broke", False), None][-1])), "__iter__": (lambda self : [self][0]), "__next__": (lambda self : ([next(iter("")) if self.broke else None, None if (self.func()) else next(iter(""))])), "stop": (lambda self : (setattr(self, "broke", True)))})), """
+output = "(lambda args: [scope := [[{}, {}]], cond := [], loops := [], libs := {}, " + while_loop
+
 
 def ensure(cond, msg):
     try:
@@ -159,7 +163,10 @@ def interpret_arg(arg):
             final = "[{}(libs[\"{}\"][1][\"{}\"]([])), None][{}]".format(def_type, arg[1], arg[3], 1 if arg[2] == "none" else 0)
     
     elif arg[0] == "arg":
-        final = "args[{}]".format(str(int(arg[1]) - 1))
+        if arg[1] == "?":
+            final = "len(args)"
+        else:
+            final = "args[{}]".format(str(int(arg[1]) - 1))
 
     return final
 
@@ -219,10 +226,10 @@ def p_line(p):
         output += "])() if cond[-1]() else None), cond.pop()], "
 
     elif directive == "while":
-        output += "cond.append(lambda : {}), (loops.append([0]) if cond[-1]() else loops.append([])), [[".format(interpret_arg(args[0]))
+        output += "(loops.append(wl((lambda : {}))), [[".format(interpret_arg(args[0]))
     
     elif directive == "end_while":
-        output += "loops[-1].append(0) if cond[-1]() else None] for _ in loops[-1]], loops.pop(), "
+        output += "] for _ in loops[-1]]), loops.pop(), "
 
     elif directive == "for":
         for_values.append(interpret_arg(args[0]))
@@ -243,7 +250,7 @@ def p_line(p):
         output += "scope.pop()][-2])), "
     
     elif directive == "break":
-        output += "[loops[-1].pop() for i in range(2)], "
+        output += "loops[-1].stop(), "
 
     elif directive == "exit":
         output += "exit(), "
