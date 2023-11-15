@@ -4,6 +4,11 @@ import sys
 newline = False
 
 code = ""
+
+dont_add_argv = True
+if len(sys.argv) > 2:
+    if sys.argv[3] == "false":
+        dont_add_argv = False
 with open(sys.argv[1], "r") as file:
     code = file.read()
 
@@ -107,9 +112,8 @@ def p_PARAMETERS(p):
         a.append(p[3])
         p[0] = a
 
-while_loop = r"""wl := (type("wl", (), {"__init__": (lambda self, func : ([setattr(self, "func", func), setattr(self, "broke", False), None][-1])), "__iter__": (lambda self : [self][0]), "__next__": (lambda self : ([next(iter("")) if self.broke else None, None if (self.func()) else next(iter(""))])), "stop": (lambda self : (setattr(self, "broke", True)))})), """
+while_loop = r"""wl := (type("wl", (), {"__init__": (lambda self, func : ([setattr(self, "func", func), setattr(self, "broke", False), None][-1])), "broken": (lambda self : getattr(self, "broke", False)), "__iter__": (lambda self : [self][0]), "__next__": (lambda self : ([next(iter("")) if self.broke else None, None if (self.func()) else next(iter(""))])), "stop": (lambda self : (setattr(self, "broke", True)))})), """
 output = "(lambda args: [scope := [[{}, {}]], cond := [], loops := [], libs := {}, " + while_loop
-
 
 def ensure(cond, msg):
     try:
@@ -138,11 +142,11 @@ def interpret_arg(arg):
         if arg[1] == "None":
             final = "None"
         else:
-            final = "{}(scope[-1][0][\"{}\"])".format(arg[1], arg[2])
+            final = "{}(scope[-1][0][\"{}\"])".format("" if arg[1] == "pass" else arg[1], arg[2])
 
     elif arg[0] == "func_call":
         def_type = arg[1]
-        if def_type == "none":
+        if def_type == "none" or def_type == "pass":
             def_type = ""
         if len(arg) == 4:
             final = "[{}(scope[0][1][\"{}\"]({})), None][{}]".format(def_type, arg[2], mult_arg(arg[3]), 1 if arg[1] == "none" else 0)
@@ -153,11 +157,11 @@ def interpret_arg(arg):
         if arg[1] == "None":
             final = "None"
         else:
-            final = "{}(libs[\"{}\"][0][\"{}\"])".format(arg[2], arg[1], arg[3])
+            final = "{}(libs[\"{}\"][0][\"{}\"])".format("" if arg[2] == "pass" else arg[2], arg[1], arg[3])
     
     elif arg[0] == "lib_call":
         def_type = arg[2]
-        if def_type == "none":
+        if def_type == "none" or def_type == "pass":
             def_type = ""
         if len(arg) == 5:
             final = "[{}(libs[\"{}\"][1][\"{}\"]({})), None][{}]".format(def_type, arg[1], arg[3], mult_arg(arg[4]), 1 if arg[2] == "none" else 0)
@@ -176,6 +180,8 @@ def interpret_arg(arg):
 
 for_values = []
 
+while_depth = 0
+
 def p_line(p):
     
     r"""   
@@ -186,6 +192,12 @@ def p_line(p):
     global output
     global newline
     global for_values
+    global while_depth
+
+    break_check = ""
+
+    if while_depth > 0:
+        break_check = "if not loops[-1].broken() else None"
 
     if newline:
         output += "\n\t"
@@ -215,13 +227,13 @@ def p_line(p):
     elif directive == "discard":
         if len(args) > 0:
             for i in args:
-                output += interpret_arg(i) + ", "
+                output += interpret_arg(i) + " {}, ".format(break_check)
         
     elif directive == "set":
         ensure(len(args) == 2, "Error: 'set' directive must have exactly two arguments")
         ensure(args[0][0] == "var_write", "Error: 'set' directive first argument must be a writable variable reference")
 
-        output += "scope[-1][0].__setitem__(\"{}\", {}), ".format(args[0][1], interpret_arg(args[1]))
+        output += "scope[-1][0].__setitem__(\"{}\", {}) {}, ".format(args[0][1], interpret_arg(args[1]), break_check)
 
     elif directive == "if":
         output += "cond.append(lambda : {}), [((lambda : [None, ".format(interpret_arg(args[0]))
@@ -231,16 +243,20 @@ def p_line(p):
 
     elif directive == "while":
         output += "(loops.append(wl((lambda : {}))), [[".format(interpret_arg(args[0]))
+        while_depth += 1
     
     elif directive == "end_while":
-        output += "] for _ in loops[-1]]), loops.pop(), "
+        while_depth -= 1
+        if while_depth == 0:
+            break_check = ""
+        output += "] for _ in loops[-1]]) {}, loops.pop() {}, ".format(break_check, break_check)
 
     elif directive == "for":
         for_values.append(interpret_arg(args[0]))
         output += "[["
     
     elif directive == "end_for":
-        output += "] for i in {}], ".format(for_values.pop())
+        output += "] for i in {}] {}, ".format(for_values.pop(), break_check)
 
     elif directive == "function":
         ensure(args[0][0] == "func", "Definition of function can only reference a function")
@@ -257,7 +273,7 @@ def p_line(p):
         output += "loops[-1].stop(), "
 
     elif directive == "exit":
-        output += "exit(), "
+        output += "exit() {}, ".format(break_check)
 
 line_val = 1
 
@@ -287,4 +303,6 @@ if newline:
 output += "])(__import__(\"sys\").argv)"
 
 with open(sys.argv[2], "w") as file:
+    if dont_add_argv:
+        output = output.replace("__import__(\"sys\").argv", "[]")
     file.write(output)
